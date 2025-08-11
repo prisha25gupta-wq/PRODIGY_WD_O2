@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Stopwatch</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            background-color: #1e1e1e;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            width: 350px;
+            max-width: 90%;
+        }
+
+        .display {
+            font-size: 3.5rem;
+            font-weight: 300;
+            text-align: center;
+            margin: 20px 0;
+            color: #00e676;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 25px;
+        }
+
+        button {
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        #startBtn {
+            background-color: #00c853;
+        }
+
+        #stopBtn {
+            background-color: #ff3d00;
+            display: none;
+        }
+
+        #resetBtn {
+            background-color: #2962ff;
+        }
+
+        #lapBtn {
+            background-color: #aa00ff;
+        }
+
+        .lap-container {
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+            border-top: 1px solid #333;
+            padding-top: 15px;
+        }
+
+        .lap-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .lap-number {
+            color: #9e9e9e;
+        }
+
+        .lap-time {
+            color: #ffffff;
+            font-weight: 500;
+        }
+
+        .lap-item button {
+            background-color: transparent;
+            color: #ff3d00;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 3px;
+        }
+
+        /* Animation for display */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .running {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" role="application">
+        <div class="display" id="display" aria-live="polite">00:00.00</div>
+       
+        <div class="controls">
+            <button id="startBtn" aria-label="Start the stopwatch">Start</button>
+            <button id="stopBtn" aria-label="Stop the stopwatch">Stop</button>
+            <button id="resetBtn" aria-label="Reset the stopwatch">Reset</button>
+            <button id="lapBtn" aria-label="Record a lap">Lap</button>
+        </div>
+       
+        <div class="lap-container" id="lapContainer" aria-label="Lap times">
+            <!-- Lap times will appear here -->
+        </div>
+    </div>
+
+    <audio id="lapSound" src="lap-sound.mp3" preload="auto"></audio>
+    <audio id="startStopSound" src="start-stop-sound.mp3" preload="auto"></audio>
+
+    <script>
+        let startTime;
+        let elapsedTime = 0;
+        let timerInterval;
+        let isRunning = false;
+        let lapCount = 1;
+
+        const display = document.getElementById('display');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const lapBtn = document.getElementById('lapBtn');
+        const lapContainer = document.getElementById('lapContainer');
+        const lapSound = document.getElementById('lapSound');
+        const startStopSound = document.getElementById('startStopSound');
+
+        // Load saved state from local storage
+        window.onload = function() {
+            const savedTime = localStorage.getItem('elapsedTime');
+            const savedLaps = JSON.parse(localStorage.getItem('lapTimes')) || [];
+            if (savedTime) {
+                elapsedTime = parseInt(savedTime);
+                display.textContent = formatTime(elapsedTime);
+            }
+            savedLaps.forEach((lap, index) => {
+                addLapToContainer(lap, index + 1);
+            });
+        };
+
+        function formatTime(ms) {
+            let date = new Date(ms);
+            let minutes = date.getUTCMinutes().toString().padStart(2, '0');
+            let seconds = date.getUTCSeconds().toString().padStart(2, '0');
+            let milliseconds = Math.floor(date.getUTCMilliseconds() / 10).toString().padStart(2, '0');
+            return `${minutes}:${seconds}.${milliseconds}`;
+        }
+
+        function startTimer() {
+            if (!isRunning) {
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(function() {
+                    elapsedTime = Date.now() - startTime;
+                    display.textContent = formatTime(elapsedTime);
+                    localStorage.setItem('elapsedTime', elapsedTime);
+                }, 10);
+                isRunning = true;
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'block';
+                display.classList.add('running');
+                startStopSound.play();
+            }
+        }
+
+        function stopTimer() {
+            if (isRunning) {
+                clearInterval(timerInterval);
+                isRunning = false;
+                startBtn.style.display = 'block';
+                stopBtn.style.display = 'none';
+                display.classList.remove('running');
+                startStopSound.play();
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            elapsedTime = 0;
+            display.textContent = '00:00.00';
+            startBtn.style.display = 'block';
+            stopBtn.style.display = 'none';
+            display.classList.remove('running');
+            lapContainer.innerHTML = '';
+            lapCount = 1;
+            localStorage.removeItem('elapsedTime');
+            localStorage.removeItem('lapTimes');
+        }
+
+        function recordLap() {
+            if (isRunning) {
+                const lapTime = formatTime(elapsedTime);
+                addLapToContainer(lapTime, lapCount);
+                lapCount++;
+                lapSound.play();
+                saveLapTime(lapTime);
+            }
+        }
+
+        function addLapToContainer(lapTime, lapNumber) {
+            const lapItem = document.createElement('div');
+            lapItem.className = 'lap-item';
+            lapItem.innerHTML = `
+                <span class="lap-number">Lap ${lapNumber}</span>
+                <span class="lap-time">${lapTime}</span>
+                <button onclick="removeLap(this)">Remove</button>
+            `;
+            lapContainer.insertBefore(lapItem, lapContainer.firstChild);
+        }
+
+        function saveLapTime(lapTime) {
+            const lapTimes = JSON.parse(localStorage.getItem('lapTimes')) || [];
+            lapTimes.push(lapTime);
+            localStorage.setItem('lapTimes', JSON.stringify(lapTimes));
+        }
+
+        function removeLap(button) {
+            const lapItem = button.parentElement;
+            lapContainer.removeChild(lapItem);
+            // Update lap count and local storage if needed
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', startTimer);
+        stopBtn.addEventListener('click', stopTimer);
+        resetBtn.addEventListener('click', resetTimer);
+        lapBtn.addEventListener('click', recordLap);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (event) => {
+            switch (event.key) {
+                case 's': // Start
+                    startTimer();
+                    break;
+                case 't': // Stop
+                    stopTimer();
+                    break;
+                case 'r': // Reset
+                    resetTimer();
+                    break;
+                case 'l': // Lap
+                    recordLap();
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
